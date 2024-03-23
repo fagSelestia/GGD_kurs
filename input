@@ -1,0 +1,14 @@
+1.5	! L     * Domain and numerical parameters
+1.5	! H
+61	! NI
+81	! NJ
+40000   ! NITER
+0.01  ! CFL
+0.5     ! Uref
+
+1.0 ! U0       * Physical parameters
+40.0     ! MU
+1000	! R0
+0.0       ! P
+0.1	! hh  !hight of stupen
+0.25 ! U01 velichina skorosti nijnei

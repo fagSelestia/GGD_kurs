@@ -3,11 +3,12 @@ Program NS
 
    INTEGER, PARAMETER:: IO = 12 ! input-output unit
    INTEGER I,J,NI, NJ, NITER, hNJ
-   REAL L,H,U0,MU,NU,R0,P0, hh, jj, U01
-   REAL dx,dy,CFL,Uref,EPS, dt
+   REAL L,H,U0,MU,NU,R0,P0, hh, jj, U01, summofx
+   REAL dx,dy,CFL,Uref, dt
    REAL,ALLOCATABLE :: X_Node(:,:),Y_Node(:,:), dU_dy(:), delta(:)
    REAL,ALLOCATABLE :: X_Cell(:,:),Y_Cell(:,:)
    REAL,ALLOCATABLE :: P_c(:,:),U_c(:,:),V_c(:,:)
+   REAL,ALLOCATABLE :: Integral(:)
 
    write(*,*) 'Read input file'
    open(IO,FILE='Input.txt')
@@ -18,7 +19,7 @@ Program NS
    read(IO,*) NITER
    read(IO,*) CFL
    read(IO,*) Uref
-   read(IO,*) EPS
+
 
    read(IO,*) U0
    read(IO,*) MU
@@ -32,6 +33,7 @@ Program NS
    allocate(Y_Node(NI,NJ)) ! mesh nodes Y-coordinates
    allocate(X_Cell(0:NI,0:NJ)) ! cell centers X-coordinates
    allocate(Y_Cell(0:NI,0:NJ)) ! cell centers Y-coordinates
+   allocate(Integral(NI))
 
 !------ Cell-centered variables
    allocate(U_c(0:NI,0:NJ))   ! Velocity U
@@ -101,12 +103,31 @@ Program NS
    Open(IO,FILE='Res.plt')
    Call NavierStokes(NITER, NI, NJ, P_c, U_c, V_c, dx, dy, NU, U0, U01, dt, IO, hh)
    Close(IO)
+   
+       DO I=1,NI
+     summofx=0.0
+      do J=1,NJ
+       summofx=summofx+R0*U_c(i,j)*(U_c(i,j)-U0)*dy
+      enddo
+     Integral(i)=summofx
+    enddo
+    
+    Open(1,FILE='integral.plt')
+    Write(1,*) 'VARIABLES = "I", "x"'
+    do I=1,NI
+    write(1,*) integral(i), I*dx
+    enddo
+    Close(1)   
 !----------------- Output data ------------------------------
 
    write(*,*) 'Output data cell (Navier-Stokes)'
    Open(IO,FILE='data.plt')
    Call OutputFields_Cell(IO,NI,NJ,X_Node,Y_Node,U_c,V_c,P_c)
    Close(IO)
+   
+!   write(*, *) "Post processed data"
+!   call post_process(U_c, NI, NJ, dU_dy, delta, U0, dy, dx, NU, MU, R0, IO)
+!   close(IO)
 
 END PROGRAM
 
@@ -183,7 +204,7 @@ SUBROUTINE NavierStokes(NITER, NI, NJ, P_c, U_c, V_c, dx, dy, nu, U0, U01, dt, I
 
             Resv(i, j) = Resv(i, j) + impy / dy
             Resv(i, j + 1) = Resv(i, j + 1) - impy / dy
-
+            
          end do
       end do
 
@@ -252,9 +273,9 @@ subroutine BoundaryNavierStokes(U_c, V_c, P_c, NI, NJ, U0, U01, dy, hh)
    V_c(:, 0) = -V_c(:,1)
    P_c(:, 0) = P_c(:, 1)
 
-   U_c(:, NJ) = U0
-   P_c(:, NJ) = P_c(:, NJ-1)
-   V_c(:, NJ) = 0.0
+   U_c(:, NJ) = U_c(:, NJ-1)
+   P_c(:, NJ) = 0.0
+   V_c(:, NJ) = V_c(:, NJ-1)
 
 end subroutine
 

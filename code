@@ -1,353 +1,390 @@
-Program NS
-   Implicit none
+       Program Nv
+        Implicit none
+ 
+        INTEGER, PARAMETER:: IO = 12 ! input-output unit
+        INTEGER I,J,NI, NJ, Z, NITER
+        REAL L, H, U0, MU, NU, R0, P0, Hjet 
+        REAL dx, dy, CFL, Uref, EPS, dt, Re_x, C_f_bl, C_f, U_max, delta
+        REAL,ALLOCATABLE :: X_Node(:,:),Y_Node(:,:)
+        REAL,ALLOCATABLE :: X_Cell(:,:),Y_Cell(:,:)
+        REAL,ALLOCATABLE :: P_c(:,:),U_c(:,:),V_c(:,:)
+ 
+        write(*,*) 'Read input file'
+        open(IO,FILE='Input.txt')
+        read(IO,*) L
+        read(IO,*) H
+        read(IO,*) NI
+        read(IO,*) NJ
+        read(IO,*) NITER
+        read(IO,*) CFL
+        read(IO,*) Uref
+        read(IO,*) EPS
+ 
+        read(IO,*) U0
+        read(IO,*) MU
+        read(IO,*) R0
+        read(IO,*) P0
+        read(IO,*) Hjet
+        CLOSE(IO)
 
-   INTEGER, PARAMETER:: IO = 12 ! input-output unit
-   INTEGER I,J,NI, NJ, NITER, hNJ
-   REAL L,H,U0,MU,NU,R0,P0, hh, jj, U01, summofx
-   REAL dx,dy,CFL,Uref, dt
-   REAL,ALLOCATABLE :: X_Node(:,:),Y_Node(:,:), dU_dy(:), delta(:)
-   REAL,ALLOCATABLE :: X_Cell(:,:),Y_Cell(:,:)
-   REAL,ALLOCATABLE :: P_c(:,:),U_c(:,:),V_c(:,:)
-   REAL,ALLOCATABLE :: Integral(:)
-
-   write(*,*) 'Read input file'
-   open(IO,FILE='Input.txt')
-   read(IO,*) L
-   read(IO,*) H
-   read(IO,*) NI
-   read(IO,*) NJ
-   read(IO,*) NITER
-   read(IO,*) CFL
-   read(IO,*) Uref
-
-
-   read(IO,*) U0
-   read(IO,*) MU
-   read(IO,*) R0
-   read(IO,*) P0
-   read(IO,*) hh
-   read(Io,*) U01
-   CLOSE(IO)
-
-   allocate(X_Node(NI,NJ)) ! mesh nodes X-coordinates
-   allocate(Y_Node(NI,NJ)) ! mesh nodes Y-coordinates
-   allocate(X_Cell(0:NI,0:NJ)) ! cell centers X-coordinates
-   allocate(Y_Cell(0:NI,0:NJ)) ! cell centers Y-coordinates
-   allocate(Integral(NI))
+        allocate(X_Node(NI,NJ)) ! mesh nodes X-coordinates
+        allocate(Y_Node(NI,NJ)) ! mesh nodes Y-coordinates
+        allocate(X_Cell(0:NI,0:NJ)) ! cell centers X-coordinates
+        allocate(Y_Cell(0:NI,0:NJ)) ! cell centers Y-coordinates
 
 !------ Cell-centered variables
-   allocate(U_c(0:NI,0:NJ))   ! Velocity U
-   allocate(V_c(0:NI,0:NJ))   ! Velocity V
-   allocate(P_c(0:NI,0:NJ))   ! Pressure
+        allocate(U_c(0:NI,0:NJ))   ! Velocity U
+        allocate(V_c(0:NI,0:NJ))   ! Velocity V
+        allocate(P_c(0:NI,0:NJ))   ! Pressure
 
-   allocate(dU_dy(NI))
-   allocate(delta(NI))
-
-   dx=L/(NI-1)
-   dy=H/(NJ-1)
-
-
-   
+        dx=L/(NI-1)
+        dy=H/(NJ-1)
 
 !------ Coordinate of nodes
-   DO I=1,NI
-      DO J=1,NJ
-         X_Node(I,J)=(I-1)*dx
-         Y_Node(I,J)=(J-1)*dy
-      END DO
-   END DO
+
+	Z = INT(Hjet/dy)
+
+        DO I=1,NI
+          DO J=1,NJ
+            X_Node(I,J)=(I-1)*dx
+            Y_Node(I,J)=(J-1)*dy
+          END DO
+        END DO
 
 !------ Coordinate of cell centers
-   X_Cell(0,1:NJ)=-dx/2
-   Y_Cell(0,1:NJ)=Y_Node(1,1:NJ)+dy/2
-   X_Cell(1:NI,0)=X_Node(1:NI,1)+dx/2
-   Y_Cell(1:NI,0)=-dy/2
-   DO I=1,NI
-      DO J=1,NJ
-         X_Cell(I,J)=X_Node(I,J)+dx/2
-         Y_Cell(I,J)=Y_Node(I,J)+dy/2
-      END DO
-   END DO
+        X_Cell(0,1:NJ)=-dx/2
+        Y_Cell(0,1:NJ)=Y_Node(1,1:NJ)+dy/2
+        X_Cell(1:NI,0)=X_Node(1:NI,1)+dx/2
+        Y_Cell(1:NI,0)=-dy/2
+        DO I=1,NI
+          DO J=1,NJ
+            X_Cell(I,J)=X_Node(I,J)+dx/2
+            Y_Cell(I,J)=Y_Node(I,J)+dy/2
+          END DO
+        END DO
 
 !----------------- Parameters ------------------------
 
-   NU=MU/R0
-   write(*, *)'Nu = ', NU, 'Mu =', MU, 'Rho =', R0
-   dt = CFL * (dx ** 2.0) / NU
+        NU=MU/R0
+        dt = (CFL/U0)*MIN(dy,dx)
 
-   write(*,*)'L= ', L, 'NI= ', NI, 'dx= ', dx
-   write(*,*)'H= ', H, 'NJ= ', NJ, 'dy= ', dy
-   write(*,*)'ReL= ', U0*H/NU, 'h= ', hh
+        write(*,*)'L= ', L, 'NI= ', NI, 'dx= ', dx
+        write(*,*)'H= ', H, 'NJ= ', NJ, 'dy= ', dy
+        write(*,*)'ReL= ', U0*L/NU, 'Hjet= ', Hjet, 'Z= ', Z
+	write(*,*)'ReHjet= ', U0*Hjet/NU
+	write(*,*)'dt= ', dt
 
 !----------------- Initial fields -----------------------------
 
-   DO I=0,NI
-    jj=0.0
-      DO J=0,NJ
-         if (jj<hh) then 
-	 	U_c(I,J)=U01         
-	 else
-         	U_c(I,J)=U0
-	 endif
-	 V_c(I,J)=1.0e-5
-         P_c(I,J)=0.0
-	 jj=jj+dy
-      ENDDO
-   ENDDO   
+        DO I=0,NI
+          DO J=0,NJ
+	    IF (J<=Z) THEN
+            	U_c(I,J)=U0
+	    ELSE
+		U_c(I,J)=Uref
+	    ENDIF
+            V_c(I,J)=1.0e-5
+            P_c(I,J)=0.0
+          ENDDO
+        ENDDO
 
 
+!---------------- Boundary conditions -------------------------
+
+
+	!inlet
+        U_c(0,0:Z) = U0
+	U_c(0,Z+1:NJ) = Uref
+        V_c(0,0:NJ) = 0.0
+        P_c(0,0:NJ) = P_c(1,0:NJ)	
+
+	!wall
+        U_c(0:NI,0) = -U_c(0:NI,1)
+        V_c(0:NI,0) = -V_c(0:NI,1)
+        P_c(0:NI,0) = P_c(0:NI,1)
+
+	!outlet up
+        V_c(0:NI,NJ) = V_c(0:NI,NJ-1)
+        U_c(0:NI,NJ) = Uref
+        P_c(0:NI,NJ) = P_c(0:NI,NJ-1)
+
+
+	!outlet
+        U_c(NI,0:NJ) = U_c(NI-1,0:NJ)
+        V_c(NI,0:NJ) = V_c(NI-1,0:NJ)
+        P_c(NI,0:NJ) = 0.0
 
 !---------------- Solve Navier-Stokes equations ---------------------
-
-   write(*,*) 'Solve Navier-Stokes equations'
-   Open(IO,FILE='Res.plt')
-   Call NavierStokes(NITER, NI, NJ, P_c, U_c, V_c, dx, dy, NU, U0, U01, dt, IO, hh)
-   Close(IO)
-   
-       DO I=1,NI
-     summofx=0.0
-      do J=1,NJ
-       summofx=summofx+R0*U_c(i,j)*(U_c(i,j)-U0)*dy
-      enddo
-     Integral(i)=summofx
-    enddo
-    
-    Open(1,FILE='integral.plt')
-    Write(1,*) 'VARIABLES = "I", "x"'
-    do I=1,NI
-    write(1,*) integral(i), I*dx
-    enddo
-    Close(1)   
-!----------------- Output data ------------------------------
-
-   write(*,*) 'Output data cell (Navier-Stokes)'
-   Open(IO,FILE='data.plt')
-   Call OutputFields_Cell(IO,NI,NJ,X_Node,Y_Node,U_c,V_c,P_c)
-   Close(IO)
-   
-!   write(*, *) "Post processed data"
-!   call post_process(U_c, NI, NJ, dU_dy, delta, U0, dy, dx, NU, MU, R0, IO)
-!   close(IO)
-
-END PROGRAM
-
-
-SUBROUTINE NavierStokes(NITER, NI, NJ, P_c, U_c, V_c, dx, dy, nu, U0, U01, dt, IO, hh)
-   IMPLICIT NONE
-   integer, intent(in) :: NITER, NI, NJ, IO
-   real, intent(in) :: nu, dx, dy, U0, U01
-   real, dimension(0: NI, 0: NJ), intent(inout) :: P_c, U_c, V_c
-   real :: U_hat, V_hat, U_half_right, U_half_up, V_half_up, V_half_right, &
-      P_half_right, P_half_up, dt, A, EdgeValue, mass, impx, impy, max_resp, &
-      max_resv, max_resu, hh
-   real, dimension(0: NI, 0: NJ) :: Resp, Resu, Resv
-   integer :: i = 0, j = 0, t = 0
-
-   A = 1.0 / (U0 ** 2.0)
-
-   Write(IO,*) 'VARIABLES = "Iter", "Resp", "Resu", "Resv"'
-   Write(IO,*) 'ZONE I=',NITER
+ 
+        write(*,*) 'Solve Navier-Stokes equations' 
+        Open(IO,FILE='Res.plt')
+        Write(IO,*) 'VARIABLES = "Iter","ResU", "ResV", "ResP"'
+        Write(IO,*) 'ZONE I=',1,', J=',NITER
+        Call NavierStokes(NI, NJ, Z, Uref, NITER, NU, dx, P_c, U_c, V_c, U0, dt, EPS, dy, IO)     
+        Close(IO)     
+                       
+ !----------------- Output data ------------------------------
+ 
+        write(*,*) 'Output data cell (Navier-Stokes)' 
+        Open(IO,FILE='data.plt')
+        Call OutputFields_Cell(IO, NI, NJ, X_Node, Y_Node, U_c, V_c, P_c)
+        Close(IO)  
+	!
+        !Open(IO,FILE='Cf.plt')
+        !write(IO,*) 'variables = "Re_x", "C_f_bl", "C_f"'
+        !write(IO,*) 'zone i =', NI-1
+        !DO I = 1, NI-1
+        !        Re_x = U0*dx*I/NU
+        !        C_f_bl = 0.644/sqrt(Re_x)
+        !        C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
+        !        write(IO,*) Re_x, C_f_bl, C_f
+        !ENDDO
+        !Close(IO) 
+	!
+        !Open(IO,FILE='Cf.data')
+        !write(IO,*) 'variables = "Re_x", "C_f"'
+        !write(IO,*) 'zone i =', NI-1
+        !DO I = 1, NI-1
+        !        Re_x = U0*dx*I/NU
+        !        C_f_bl = 0.644/sqrt(Re_x)
+        !        C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
+        !        write(IO,*) Re_x, C_f_bl, C_f
+        !ENDDO
+        !Close(IO) 
 
 
-   do t = 1, NITER, 1
+	!velocity in self-similar coordinates
 
-      Resv(:, :) = 0.0
-      Resu(:, :) = 0.0
-      Resp(:, :) = 0.0
+ 	Open(IO,FILE='x=0.2.dat')
+ 	i=0.2/dx
+ 	write(IO, *) 'VARIABLES = "U", "Y"' 
+ 	write(IO, *) "ZONE i=", NJ
+ 	print*, i
 
-      do j = 1, NJ - 1, 1
-         do i = 0, NI - 1, 1
+ 	U_max = maxval(U_c(i,0:NJ))
+ 	do j = 0, NJ 
+  		if (abs(U_c(i,j)-U_max)<0.05) then 
+     			delta = Y_node(i,j)
+ 			exit
+  		endif
+ 	end do 
 
-            U_hat = 0.5 * (U_c(i + 1, j) + U_c(i, j)) ! +
-            V_hat = 0.5 * (V_c(i,j + 1) + V_c(i, j))
+  	do j=1,NJ
+  		write(IO,*) U_c(i,j)/U_max, 5*Y_Node(i,j)/delta
+  	end do
+  	Close(IO)
 
-            U_half_right = EdgeValue(U_hat, U_c(i, j), U_c(i + 1, j))  ! +
-            V_half_right = EdgeValue(V_hat, V_c(i, j), V_c(i + 1, j)) ! +
-            P_half_right = EdgeValue(U_hat, P_c(i + 1, j), P_c(i, j))
+ 	Open(IO,FILE='x=0.4.dat')
+  	i=0.4/dx
+  	write(IO, *) 'VARIABLES = "U", "Y"' 
+  	write(IO, *) "ZONE i=", NJ
+  	print*, i
+  	U_max = maxval(U_c(i,0:NJ))
+  	do j = 0, NJ 
+  		if (abs(U_c(i,j)-U_max)<0.05) then 
+      			delta = Y_node(i,j)
+      			exit
+    		endif
+  	end do 
 
-            mass = U_half_right ! +
-            impx = U_hat * U_half_right + P_half_right - nu * (U_c(i + 1, j) - U_c(i, j)) / dx ! +
-            impy = U_hat * V_half_right - nu * (V_c(i + 1, j) - V_c(i, j)) / dx ! +
+	do j=0,NJ
+ 		write(IO,*) U_c(i,j)/U_max, 5*Y_Node(i,j)/delta
+  	end do
+  	Close(IO)
 
+  	Open(IO,FILE='x=0.6.dat')
+  	i=0.6/dx
+  	write(IO, *) 'VARIABLES = "U", "Y"' 
+  	write(IO, *) "ZONE i=", NJ
+  	print*, i
 
-            Resp(i, j) = Resp(i, j) + mass / dx ! +
-            Resp(i + 1, j) = Resp(i + 1, j) - mass / dx ! +
+  	U_max = maxval(U_c(i,0:NJ))
+  	do j = 0, NJ 
+  		if (abs(U_c(i,j)-U_max)<0.05) then 
+      			delta = Y_node(i,j)
+      			exit
+    		endif
+  	end do 
 
-            Resu(i, j) = Resu(i, j) + impx / dx
-            Resu(i + 1, j) = Resu(i + 1, j) - impx / dx
+  	do j=0,NJ
+    		write(IO,*) U_c(i,j)/U_max, 5*Y_Node(i,j)/delta
+  	end do
+  	Close(IO)
 
-            Resv(i, j) = Resv(i, j) + impy / dx
-            Resv(i + 1, j) = Resv(i + 1, j) - impy / dx
+ 	Open(IO,FILE='x=0.8.dat')
+  	i=0.8/dx
+  	write(IO, *) 'VARIABLES = "U", "Y"' 
+  	write(IO, *) "ZONE i=", NJ
+  	print*, i
+  	U_max = maxval(U_c(i,:))
+  	do j = 0, NJ 
+  		if (abs(U_c(i,j)-U_max)<0.05) then 
+      			delta = Y_node(i,j)
+      			exit
+    		endif
+  	end do 
 
-         end do
-      end do
+	do j=0,NJ
+ 		write(IO,*) U_c(i,j)/U_max, 5*Y_Node(i,j)/delta
+  	end do
+  	Close(IO)
 
-      do i = 1, NI - 1, 1
-         do j = 0, NJ - 1, 1
+  	Open(IO,FILE='x=0.9.dat')
+  	i=0.9/dx
+  	write(IO, *) 'VARIABLES = "U", "Y"' 
+  	write(IO, *) "ZONE i=", NJ
+  	print*, i
 
-            U_hat = 0.5 * (U_c(i + 1, j) + U_c(i, j))
-            V_hat = 0.5 * (V_c(i,j + 1) + V_c(i, j))
+  	U_max = maxval(U_c(i,:))
+  	do j = 0, NJ 
+  		if (abs(U_c(i,j)-U_max)<0.05) then 
+      			delta = Y_node(i,j)
+      			exit
+    		endif
+  	end do 
 
-            U_half_up = EdgeValue(U_hat, U_c(i, j), U_c(i, j + 1))
-            V_half_up = EdgeValue(V_hat, V_c(i, j), V_c(i, j + 1))
-            P_half_up = EdgeValue(V_hat, P_c(i, j + 1), P_c(i, j))
+  	do j=0,NJ
+    		write(IO,*) U_c(i,j)/U_max, 5*Y_Node(i,j)/delta
+  	end do
+  	Close(IO)
+     
+        END PROGRAM
 
-            mass = V_half_up
-            impx = V_hat * U_half_up - nu * (U_c(i, j + 1) - U_c(i, j)) / dy
-            impy = V_half_up * V_hat + P_half_up - nu * (V_c(i, j + 1) - V_c(i, j)) / dy
+!************************************************************************************************      
+	SUBROUTINE NavierStokes(NI, NJ, Z, Uref, NITER, NU, dx, P_c, U_c, V_c, U0, dt, EPS, dy, IO)
+        INTEGER I, J, NI, NJ, NITER, t, IO, Z
+        REAL NU, dx, U0, A, dt, EPS, dy, Uref
+        REAL MAX_P, MAX_U, MAX_V, U_hat, V_hat, Imx, Imy, Mass
+	REAL,DIMENSION(0:NI,0:NJ)::P_c, U_c, V_c
+        DOUBLE PRECISION,DIMENSION(0:NI,0:NJ):: Res_U, Res_V, Res_P, U_new, V_new, P_new
 
-            Resp(i, j) = Resp(i, j) + mass / dy ! +
-            Resp(i, j + 1) = Resp(i, j + 1) - mass / dy ! +
+        A = 1/(U0**2)
+        t = 0
+        MAX_P = 1 
+        MAX_U = 1 
+        MAX_V = 1
 
-            Resu(i, j) = Resu(i, j) + impx / dy
-            Resu(i, j + 1) = Resu(i, j + 1) - impx / dy
+        DO WHILE (((MAX_U.GE.EPS).AND.(MAX_V.GE.EPS).AND.(MAX_P.GE.EPS)).AND.(t.LE.NITER))
+                Res_U(0:NI,0:NJ) = 0.0
+                Res_V(0:NI,0:NJ) = 0.0
+                Res_P(0:NI,0:NJ) = 0.0
+                DO J = 1, NJ-1
+                        DO I = 0, NI-1
+                                Imx = 0.0
+                                Imy = 0.0
+                                Mass = 0.0
+                                U_hat = 0.5 * (U_c(I+1,J)+U_c(I,J))
+                                IF (U_hat.GE.0) THEN
+                                        Imx = -(U_hat*U_c(I,J)/dx) - P_c(I+1,J)/dx + NU*(U_c(I+1,J)-U_c(I,J))/(dx**2)
+                                        Imy = -(U_hat*V_c(I,J)/dx) + NU*(V_c(I+1,J)-V_c(I,J))/(dx**2)
+                                        Mass = -(1/A) * U_c(I,J)/dx
+                                ELSE
+                                        Imx = -(U_hat*U_c(I+1,J)/dx) - P_c(I,J)/dx + NU*(U_c(I+1,J)-U_c(I,J))/(dx**2)
+                                        Imy = -(U_hat*V_c(I+1,J)/dx) + NU*(V_c(I+1,J)-V_c(I,J))/(dx**2)
+                                        Mass = -(1/A) * U_c(I+1,J)/dx
+                                ENDIF
+                                Res_U(I,J) = Res_U(I,J) + Imx
+                                Res_U(I+1,J) = Res_U(I+1,J) - Imx
+                                Res_V(I,J) = Res_V(I,J) + Imy
+                                Res_V(I+1,J) = Res_V(I+1,J) - Imy
+                                Res_P(I,J) = Res_P(I,J) + Mass
+                                Res_P(I+1,J) = Res_P(I+1,J) - Mass
+                        ENDDO
+                        Res_U(0,J) = 0.0
+                        Res_U(NI,J) = 0.0
+                        Res_V(0,J) = 0.0
+                        Res_V(NI,J) = 0.0
+                        Res_P(0,J) = 0.0
+                        Res_P(NI,J) = 0.0
+                ENDDO
 
-            Resv(i, j) = Resv(i, j) + impy / dy
-            Resv(i, j + 1) = Resv(i, j + 1) - impy / dy
-            
-         end do
-      end do
+                DO I = 1, NI-1
+                        DO J = 0, NJ-1
+                                Imx = 0.0
+                                Imy = 0.0
+                                Mass = 0.0
+                                V_hat = 0.5 * (V_c(I,J+1)+V_c(I,J))
+                                IF (V_hat.GE.0) THEN
+                                        Imx = -(V_hat*U_c(I,J)/dy) + NU*(U_c(I,J+1)-U_c(I,J))/(dy**2)
+                                        Imy = -(V_hat*V_c(I,J)/dy) - P_c(I,J+1)/dy + NU*(V_c(I,J+1)-V_c(I,J))/(dy**2)
+                                        IF (J.EQ.0) THEN
+                                                Mass = 0.0
+                                        ELSE
+                                                Mass = -(1/A) * V_c(I,J)/dy
+                                        ENDIF
+                                ELSE
+                                        Imx = -(V_hat*U_c(I,J+1)/dy) + NU*(U_c(I,J+1)-U_c(I,J))/(dy**2)
+                                        Imy = -(V_hat*V_c(I,J+1)/dy) - P_c(I,J)/dy + NU*(V_c(I,J+1)-V_c(I,J))/(dy**2)
+                                        IF (J.EQ.0) THEN
+                                                Mass = 0.0
+                                        ELSE
+                                                Mass = -(1/A) * V_c(I,J+1)/dy
+                                        ENDIF
+                                ENDIF
+                                Res_U(I,J) = Res_U(I,J) + Imx
+                                Res_U(I,J+1) = Res_U(I,J+1) - Imx
+                                Res_V(I,J) = Res_V(I,J) + Imy
+                                Res_V(I,J+1) = Res_V(I,J+1) - Imy
+                                Res_P(I,J) = Res_P(I,J) + Mass
+                                Res_P(I,J+1) = Res_P(I,J+1) - Mass     
+                        ENDDO
+                        Res_U(I,0) = 0.0
+                        Res_U(I,NJ) = 0.0
+                        Res_V(I,0) = 0.0
+                        Res_V(I,NJ) = 0.0
+                        Res_P(I,0) = 0.0
+                        Res_P(I,NJ) = 0.0
+                ENDDO
+                DO I = 1, NI-1
+                        DO J = 1, NJ-1
+                                U_new(I,J) = U_c(I,J) + Res_U(I,J)*dt
+                                V_new(I,J) = V_c(I,J) + Res_V(I,J)*dt
+                                P_new(I,J) = P_c(I,J) + Res_P(I,J)*dt
+                        ENDDO
+                ENDDO
 
-      call BoundaryNavierStokes(U_c, V_c, P_c, NI, NJ, U0, U01, dy, hh)
+                U_new(0:NI,0) = -U_new(0:NI,1)
+                V_new(0:NI,0) = -V_new(0:NI,1)
+                P_new(0:NI,0) = P_new(0:NI,1)
 
-      do i = 1, NI - 1, 1
-         do j = 1, NJ - 1, 1
+                U_new(0,0:Z) = U0
+		U_new(0,Z+1:NJ) = Uref
+                V_new(0,0:NJ) = 0.0
+                P_new(0,0:NJ) = P_new(1,0:NJ)
 
-            P_c(i, j) = P_c(i, j) - dt / A * Resp(i, j)
-            U_c(i, j) = U_c(i, j) - dt * Resu(i, j)
-            V_c(i, j) = V_c(i, j) - dt * Resv(i, j)
+                V_new(0:NI,NJ) = V_new(0:NI,NJ-1)
+                P_new(0:NI,NJ) = P_new(0:NI,NJ-1)
+		U_new(0:NI,NJ) = Uref
 
-         end do
-      end do
+                U_new(NI,0:NJ) = U_new(NI-1,0:NJ)
+                V_new(NI,0:NJ) = V_new(NI-1,0:NJ)
+                P_new(NI,0:NJ) = 0.0
 
-      max_resp = MAXVAL(ABS(Resp(1:NI-1, 1:NJ-1)))
-      max_resu = MAXVAL(ABS(Resu(1:NI-1, 1:NJ-1)))
-      max_resv = MAXVAL(ABS(Resv(1:NI-1, 1:NJ-1)))
+                MAX_U = MAXVAL(ABS(Res_U(0:NI,0:NJ)))
+                MAX_V = MAXVAL(ABS(Res_V(0:NI,0:NJ)))
+                MAX_P = MAXVAL(ABS(Res_P(0:NI,0:NJ)))
+                t = t+1
+                Write(IO,*) t,MAX_U,MAX_V,MAX_P
+                U_c(0:NI,0:NJ) = U_new(0:NI,0:NJ)
+                V_c(0:NI,0:NJ) = V_new(0:NI,0:NJ)
+                P_c(0:NI,0:NJ) = P_new(0:NI,0:NJ)
+        ENDDO
+	END  SUBROUTINE NavierStokes
 
-      ! print*, "Max Res p: ", max_resp
-      ! print*, "Max Res v: ", max_resu
-      ! print*, "Max Res u: ", max_resv
+!************************************************************************************************
+        SUBROUTINE OutputFields_Cell(IO,NI,NJ,X,Y,U,V,P)
+        IMPLICIT NONE
 
-      write(IO, *) t, max_resp, max_resu, max_resv
+        INTEGER NI,NJ,IO
+        REAL,DIMENSION(NI,NJ):: X,Y
+        REAL,DIMENSION(0:NI,0:NJ)::U,V,P
+       
+        Write(IO,*) 'VARIABLES = "X", "Y", "U", "V", "P"' 
+        Write(IO,*) 'ZONE I=',NI,', J=',NJ,', DATAPACKING=BLOCK, VARLOCATION=([3-20]=CELLCENTERED)'
+        Write(IO,'(100E25.16)') X(1:NI,1:NJ) 
+        Write(IO,'(100E25.16)') Y(1:NI,1:NJ)
+        Write(IO,'(100E25.16)') U(1:NI-1,1:NJ-1)
+        Write(IO,'(100E25.16)') V(1:NI-1,1:NJ-1)
+        Write(IO,'(100E25.16)') P(1:NI-1,1:NJ-1)
 
-   end do
-
-
-END  SUBROUTINE
-
-
-real function EdgeValue(tilda_value, left_value, right_value)
-   real, intent(in) :: tilda_value, left_value, right_value
-   if (tilda_value >= 0.0) then
-      EdgeValue = left_value
-   else
-      EdgeValue = right_value
-   end if
-end function
-
-
-subroutine BoundaryNavierStokes(U_c, V_c, P_c, NI, NJ, U0, U01, dy, hh)
-   Implicit none
-   integer, intent(in) :: NI, NJ
-   integer :: J
-   real :: U0, U01, jj, hh, dy
-   real, dimension(0:NI, 0:NJ) :: U_c, V_c, P_c
-   J=0
-   jj = 0.0
-   DO J=0,NJ
-   	if (jj<hh) then 
-		U_c(0,J)=U01         
-	else
-        	U_c(0,J)=U0
-	endif
-	jj=jj+dy
-   ENDDO
-   V_c(0, :) = 0.0 
-   P_c(0, :) = P_c(1, :)
-
-   U_c(NI, :) = U_c(NI-1, :)
-   V_c(NI, :) = V_c(NI-1, :)
-   P_c(NI, :) = 0.0
-
-   U_c(:, 0) = U_c(:,1)
-   V_c(:, 0) = -V_c(:,1)
-   P_c(:, 0) = P_c(:, 1)
-
-   U_c(:, NJ) = U_c(:, NJ-1)
-   P_c(:, NJ) = 0.0
-   V_c(:, NJ) = V_c(:, NJ-1)
-
-end subroutine
-
-
-SUBROUTINE OutputFields_Cell(IO,NI,NJ,X,Y,U,V,P)
-   IMPLICIT NONE
-
-   INTEGER NI,NJ,IO
-   REAL,DIMENSION(NI,NJ):: X,Y
-   REAL,DIMENSION(0:NI,0:NJ)::U,V,P
-
-   Write(IO,*) 'VARIABLES = "X", "Y", "U", "V", "P"'
-   Write(IO,*) 'ZONE I=',NI,', J=',NJ,', DATAPACKING=BLOCK, VARLOCATION=([3-20]=CELLCENTERED)'
-   Write(IO,'(100E25.16)') X(1:NI,1:NJ)
-   Write(IO,'(100E25.16)') Y(1:NI,1:NJ)
-   Write(IO,'(100E25.16)') U(1:NI-1,1:NJ-1)
-   Write(IO,'(100E25.16)') V(1:NI-1,1:NJ-1)
-   Write(IO,'(100E25.16)') P(1:NI-1,1:NJ-1)
-
-END SUBROUTINE
-
-
-subroutine post_process(U_n, NI, NJ, dU_dy, delta, U0, dy, dx, NU, MU, R0, IO)
-   implicit none
-   integer, intent(in) :: NI, NJ, IO
-   real, intent(in) :: U0, dy, dx, NU, R0
-   real, dimension(0:NI, 0:NJ), intent(in) :: U_n
-   integer :: i, j, k = 1, max_k = 1
-   real :: Re_x, Cf, Cfs, MU, max_U
-   real, dimension(NI), intent(inout) :: dU_dy, delta
-   character(len=1024) :: filename
-
-
-   do i = 1, NI - 1, 1
-      max_U = MAXVAL(U_n(i, 1:NJ-1))
-      do j = 1, NJ - 1, 1
-         if (abs(U_n(i, j) - max_U) / max_U <= 0.01) then
-            delta(i) = j * dy
-            exit
-         end if
-      end do
-      if (mod(i, 10) == 1) then
-         write (filename, "(a, f3.1)") "U_by_y_", (i * dx)
-         open(IO, FILE=filename)
-         write(IO, "(a)") "U/U0, y/delta"
-         do j = 1, NJ-1, 1
-            if (U_n(i, j) < 0.0) then
-               print *, i, j
-            endif
-            write(IO, "(f15.12,a,f15.12)") U_n(i, j) / max_U,",",dy * j / delta(i)
-         end do
-         k = k + 1
-      end if
-      if (i > 1) then
-         dU_dy(i) = (3 * U_n(i, 1) - 4 * U_n(i, 2) + U_n(i, 3)) / (2.0 * dy)
-      else
-         dU_dy(i) = 0.14
-      end if
-   end do
-
-   max_k = k
-
-   open(IO, FILE="Post.plt")
-
-   write(IO,*) 'VARIABLES = "dU_dy", "delta", "X", "Re_x", "Cf", "cf_blaz"'
-   write(IO,*) 'ZONE I=',NI
-   do i = 1, NI, 1
-      Re_x = U0 * dx * i / NU
-      Cf = -MU * dU_dy(i) / (0.5 * R0 * U0**2.0)
-      Cfs = 0.664 / (Re_x) ** 0.5
-      write(IO,'(100E25.16)') dU_dy(i), delta(i), dx * i, Re_x, Cf, Cfs
-   end do
-
-   close(IO)
-end subroutine
+        END SUBROUTINE 

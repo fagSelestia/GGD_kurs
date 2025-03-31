@@ -1,5 +1,5 @@
 1.0	! L     * Domain and numerical parameters
-0.8	! H
+1.0	! H
 101	! NI
 201	! NJ
 300000   ! NITER

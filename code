@@ -129,29 +129,56 @@
         Open(IO,FILE='data.plt')
         Call OutputFields_Cell(IO, NI, NJ, X_Node, Y_Node, U_c, V_c, P_c)
         Close(IO)  
-	
-        Open(IO,FILE='Cf.plt')
-        write(IO,*) 'variables = "Re_x", "C_f_bl", "C_f"'
-        write(IO,*) 'zone i =', NI-1
-        DO I = 1, NI-1
-                Re_x = U0*dx*I/NU
-                C_f_bl = 0.644/sqrt(Re_x)
-                C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
-                write(IO,*) Re_x, C_f_bl, C_f
-        ENDDO
-        Close(IO) 
-	
-        Open(IO,FILE='Cf.data')
-        write(IO,*) 'variables = "Re_x", "C_f"'
-        write(IO,*) 'zone i =', NI-1
-        DO I = 1, NI-1
-                Re_x = U0*dx*I/NU
-                C_f_bl = 0.644/sqrt(Re_x)
-                C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
-                write(IO,*) Re_x, C_f_bl, C_f
-        ENDDO
-        Close(IO) 
 
+
+	Open(IO, FILE='Delta.dat')
+	write(IO, *) 'VARIABLES = "X", "Delta"'
+	write(IO, *) "ZONE i=", NI
+	
+	do i = 1, NI
+	    U_max = maxval(U_c(i,:))
+	    delta = 0.0
+	    do j = 1, NJ
+	        if (abs(U_c(i,j)-U_max)<0.05) then
+	        	delta = Y_node(i,j)
+			exit
+		endif
+	    enddo
+	    write(IO,*) X_Cell(i,1), delta
+	enddo
+	Close(IO)	
+
+
+  	U_max = maxval(U_c(i,:))
+  	do j = 0, NJ 
+  		if (abs(U_c(i,j)-U_max)<0.05) then 
+      			delta = Y_node(i,j)
+      			exit
+    		endif
+  	end do 
+
+
+        !Open(IO,FILE='Cf.plt')
+        !write(IO,*) 'variables = "Re_x", "C_f_bl", "C_f"'
+        !write(IO,*) 'zone i =', NI-1
+        !DO I = 1, NI-1
+        !        Re_x = U0*dx*I/NU
+        !        C_f_bl = 0.644/sqrt(Re_x)
+        !        C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
+       !         write(IO,*) Re_x, C_f_bl, C_f
+       ! ENDDO
+       !! Close(IO) 
+	!
+        !Open(IO,FILE='Cf.data')
+        !write(IO,*) 'variables = "Re_x", "C_f"'
+        !write(IO,*) 'zone i =', NI-1
+       ! DO I = 1, NI-1
+       !         Re_x = U0*dx*I/NU
+      !          C_f_bl = 0.644/sqrt(Re_x)
+      !          C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
+      !         write(IO,*) Re_x, C_f_bl, C_f
+       ! ENDDO
+        !Close(IO) 
 
 	!velocity in self-similar coordinates
 
@@ -160,11 +187,10 @@
  	write(IO, *) 'VARIABLES = "U", "Y"' 
  	write(IO, *) "ZONE i=", NJ
  	print*, i
-
  	U_max = maxval(U_c(i,0:NJ))
  	do j = 0, NJ 
   		if (abs(U_c(i,j)-U_max)<0.05) then 
-     			delta = Y_node(i,j)
+    			delta = Y_node(i,j)
  			exit
   		endif
  	end do 
@@ -182,7 +208,7 @@
   	U_max = maxval(U_c(i,0:NJ))
   	do j = 0, NJ 
   		if (abs(U_c(i,j)-U_max)<0.05) then 
-      			delta = Y_node(i,j)
+     			delta = Y_node(i,j)
       			exit
     		endif
   	end do 
@@ -424,5 +450,3 @@
         Write(IO,'(100E25.16)') P(1:NI-1,1:NJ-1)
 
         END SUBROUTINE 
-
-   

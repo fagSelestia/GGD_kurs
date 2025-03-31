@@ -1,10 +1,10 @@
-       Program Nv
+        Program Nv
         Implicit none
  
         INTEGER, PARAMETER:: IO = 12 ! input-output unit
-        INTEGER I,J,NI, NJ, Z, NITER
+        INTEGER I,J,NI, NJ, Z, ZZ, NITER
         REAL L, H, U0, MU, NU, R0, P0, Hjet 
-        REAL dx, dy, CFL, Uref, EPS, dt, Re_x, C_f_bl, C_f, U_max, delta
+        REAL dx, dy, CFL, Uref, EPS, dt, Re_x, C_f_bl, C_f, U_max, delta, Impulse, Integral
         REAL,ALLOCATABLE :: X_Node(:,:),Y_Node(:,:)
         REAL,ALLOCATABLE :: X_Cell(:,:),Y_Cell(:,:)
         REAL,ALLOCATABLE :: P_c(:,:),U_c(:,:),V_c(:,:)
@@ -129,28 +129,28 @@
         Open(IO,FILE='data.plt')
         Call OutputFields_Cell(IO, NI, NJ, X_Node, Y_Node, U_c, V_c, P_c)
         Close(IO)  
-	!
-        !Open(IO,FILE='Cf.plt')
-        !write(IO,*) 'variables = "Re_x", "C_f_bl", "C_f"'
-        !write(IO,*) 'zone i =', NI-1
-        !DO I = 1, NI-1
-        !        Re_x = U0*dx*I/NU
-        !        C_f_bl = 0.644/sqrt(Re_x)
-        !        C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
-        !        write(IO,*) Re_x, C_f_bl, C_f
-        !ENDDO
-        !Close(IO) 
-	!
-        !Open(IO,FILE='Cf.data')
-        !write(IO,*) 'variables = "Re_x", "C_f"'
-        !write(IO,*) 'zone i =', NI-1
-        !DO I = 1, NI-1
-        !        Re_x = U0*dx*I/NU
-        !        C_f_bl = 0.644/sqrt(Re_x)
-        !        C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
-        !        write(IO,*) Re_x, C_f_bl, C_f
-        !ENDDO
-        !Close(IO) 
+	
+        Open(IO,FILE='Cf.plt')
+        write(IO,*) 'variables = "Re_x", "C_f_bl", "C_f"'
+        write(IO,*) 'zone i =', NI-1
+        DO I = 1, NI-1
+                Re_x = U0*dx*I/NU
+                C_f_bl = 0.644/sqrt(Re_x)
+                C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
+                write(IO,*) Re_x, C_f_bl, C_f
+        ENDDO
+        Close(IO) 
+	
+        Open(IO,FILE='Cf.data')
+        write(IO,*) 'variables = "Re_x", "C_f"'
+        write(IO,*) 'zone i =', NI-1
+        DO I = 1, NI-1
+                Re_x = U0*dx*I/NU
+                C_f_bl = 0.644/sqrt(Re_x)
+                C_f = (NU*(U_c(I,1)-U_c(I,0)))/(dy*(MAXVAL(U_c(I,1:NJ-1)))**2)*2
+                write(IO,*) Re_x, C_f_bl, C_f
+        ENDDO
+        Close(IO) 
 
 
 	!velocity in self-similar coordinates
@@ -247,6 +247,42 @@
     		write(IO,*) U_c(i,j)/U_max, 5*Y_Node(i,j)/delta
   	end do
   	Close(IO)
+
+	
+	!Velocity on Hjet axis
+  	Open(IO,FILE='0.5Hjet.dat')
+  	write(IO, *) 'VARIABLES = "L", "U"' 
+  	write(IO, *) "ZONE i=", NI
+	IF (MOD(Z, 2) == 0) then 
+		ZZ=Z/2
+  		print*, 'chetnoe under ZZ= ', ZZ, 'middle  jett = ', Hjet/2.0
+		DO I = 1, NI
+		    U_max = (U_c(I,ZZ)+U_c(I,ZZ+1))/2.0
+		    write(IO,*) I*dx, U_max
+		ENDDO
+	ELSE
+		ZZ=(Z+1)/2
+		print*, 'Nechetnoe ZZ= ', ZZ, 'middle  jett = ', Hjet/2.0
+		DO I = 1, NI
+		    U_max = U_c(I,ZZ)
+		    write(IO,*) I*dx, U_max
+		ENDDO		
+	ENDIF
+  	Close(IO)
+
+	Open(IO, FILE='Jet_Impulse.dat')
+	write(IO, *) 'VARIABLES = "L", "Impulse"'
+	write(IO, *) "ZONE i=", NI
+	
+	do i = 1, NI
+	    Impulse = 0.0
+	    do j = 1, NJ
+	        integral = R0 * U_c(i, j) * (U_c(i, j) - Uref)
+	        Impulse = Impulse + integral * dy
+	    enddo
+	    write(IO,*) X_Cell(i,1), Impulse
+	enddo
+	Close(IO)
      
         END PROGRAM
 
@@ -388,3 +424,5 @@
         Write(IO,'(100E25.16)') P(1:NI-1,1:NJ-1)
 
         END SUBROUTINE 
+
+   
